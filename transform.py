@@ -6,7 +6,7 @@ from reader import EDRReader
 from preprocessor import PreProcessor
 from categorizer import HasBeneficiaryOwnershipRecord
 from tokenize_uk import tokenize_words
-from parser import HeuristicBasedParser
+from record_parser import HeuristicBasedParser
 
 logger = logging.getLogger("transformer")
 

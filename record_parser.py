@@ -1,11 +1,14 @@
+import os
 import logging
 from enum import IntEnum
+from mitie import named_entity_extractor
 
 logger = logging.getLogger("parser")
 
 
 class AbstractParser(object):
-    pass
+    def parse_founders_record(self, founder):
+        raise NotImplementedError()
 
 
 class FingerprintClass(IntEnum):
@@ -46,13 +49,15 @@ class FingerprintClass(IntEnum):
 
 class HeuristicBasedParser(AbstractParser):
     def __init__(self):
+        basedir = os.path.join(os.path.dirname(__file__), "datasets")
         self.names_set = self.load_dicts(
-            include=["datasets/fuge_name_dataset.txt", "datasets/extra_names.txt"],
-            exclude=["datasets/names_junk.txt"]
+            include=[os.path.join(basedir, "fuge_name_dataset.txt"),
+                     os.path.join(basedir, "extra_names.txt")],
+            exclude=[os.path.join(basedir, "names_junk.txt")]
         )
 
         self.countries_set = self.load_dicts(
-            include=["datasets/countries.txt"],
+            include=[os.path.join(basedir, "countries.txt")],
             exclude=[]
         )
 
@@ -82,7 +87,7 @@ class HeuristicBasedParser(AbstractParser):
     def preclassify_chunk_as_country(self, chunk):
         return chunk in self.countries_set
 
-    def parse_founders_record(self, founder):
+    def parse_founders_record(self, founder, include_range=False):
         name_rec = {
             "record": founder,
             "preclassified": list(map(self.preclassify_chunk_as_name, founder))
@@ -92,13 +97,17 @@ class HeuristicBasedParser(AbstractParser):
         fingerprint_cls = FingerprintClass.classify_fingerprint(name_fingerprint)
 
         name = None
+        name_rng = None
         country = None
+        country_rng = None
+        address = None
+        address_rng = None
 
         if fingerprint_cls in [
                 FingerprintClass.IDEAL, FingerprintClass.COMPLICATED,
                 FingerprintClass.ALMOST_IDEAL, FingerprintClass.COMPLICATED_AND_STRANGE]:
-            rng = self.get_longest_range(name_rec)
-            name = " ".join(name_rec["record"][rng[0]:rng[1]])
+            name_rng = self.get_longest_range(name_rec)
+            name = " ".join(name_rec["record"][name_rng[0]:name_rng[1]])
 
         country_rec = {
             "record": founder,
@@ -107,13 +116,43 @@ class HeuristicBasedParser(AbstractParser):
 
         country_fingerprint = self.get_fingerprint(country_rec)
         if country_fingerprint in [(1,), (2, ), (3, )]:
-            rng = self.get_longest_range(country_rec)
-            country = " ".join(name_rec["record"][rng[0]:rng[1]])
+            country_rng = self.get_longest_range(country_rec)
+            country = " ".join(country_rec["record"][country_rng[0]:country_rng[1]])
 
-        return {
+            if country_rng[1] < len(country_rec["record"]):
+                if "розмір" in country_rec["record"]:
+                    address_rng = [country_rng[1], country_rec["record"].index("розмір")]
+                else:
+                    address_rng = [country_rng[1], len(country_rec["record"])]
+
+                # try:
+                if country_rec["record"][address_rng[0]] in ",.;- ":
+                    address_rng[0] += 1
+
+                if country_rec["record"][address_rng[1] - 1] in ",.;- ":
+                    address_rng[1] -= 1
+                # except IndexError:
+                #     pass
+
+                if address_rng[0] < address_rng[1]:
+                    address = " ".join(country_rec["record"][address_rng[0]:address_rng[1]])
+                else:
+                    address_rng = None
+
+        result = {
             "Name": name,
-            "Country of residence": country
+            "Country of residence": country,
+            "Address of residence": address
         }
+
+        if include_range:
+            result.update({
+                "name_rng": name_rng,
+                "country_rng": country_rng,
+                "address_rng": address_rng
+            })
+
+        return result
 
     def get_extracted(self, record):
         res = []
@@ -159,27 +198,48 @@ class HeuristicBasedParser(AbstractParser):
         return tuple(map(len, self.get_extracted(record)))
 
 
+class MITIEBasedParser(AbstractParser):
+    def __init__(self, model="test_data/edr_ner_model_gigaword_embeddings.dat"):
+        self.ner = named_entity_extractor(model)
+
+    def parse_founders_record(self, founder):
+        entities = self.ner.extract_entities(founder)
+        name = None
+        if entities:
+            names = []
+            for rng, _, _ in entities:
+                names.append(" ".join(founder[i] for i in rng))
+
+            name = "; ".join(names)
+
+        return {
+            "Name": name,
+            "Country of residence": None
+        }
+
+
 if __name__ == '__main__':
-    parser = HeuristicBasedParser()
+    ner_parser = MITIEBasedParser()
+    ner_advanced_parser = MITIEBasedParser("test_data/edr_ner_model_edr_embeddings.dat")
+    ner_advanced_full_name_parser = MITIEBasedParser("expirements/edr_ner_model_combined_embeddings_name_class_full.dat")
+    heur_parser = HeuristicBasedParser()
+    import csv
 
-    assert(parser.get_longest_range({
-        "preclassified": [1, 1, 0, 1, 1, 1, 0],
-        "record": ["a", "b", "c", "d", "e", "f", "g"]
-    }) == (3, 6))
+    with open("test_data/difference_heur_vs_simple_ner_vs_advanced_ner.csv", "w") as fp_out:
+        w = csv.writer(fp_out, dialect="excel")
 
-    assert(parser.get_longest_range({
-        "preclassified": [0, 1, 1, 0, 1],
-        "record": ["a", "b", "c", "d", "e"]}) == (1, 3))
+        with open("test_data/output_founders_alt_tokenization.txt", "r") as fp:
+            for i, l in enumerate(fp):
+                rec = l.strip().split(" ")
+                ner_results = ner_parser.parse_founders_record(rec)
+                ner_advanced_results = ner_advanced_parser.parse_founders_record(rec)
+                ner_advanced_full_name_results = ner_advanced_full_name_parser.parse_founders_record(rec)
+                heur_results = heur_parser.parse_founders_record(rec)
 
-    assert(parser.get_fingerprint({
-        "preclassified": [0, 1, 1, 0, 1],
-        "record": ["a", "b", "c", "d", "e"]}) == (2, 1))
-    assert(parser.get_fingerprint({
-        "preclassified": [0, 0, 0, 0, 0],
-        "record": ["a", "b", "c", "d", "e"]}) == ())
-    assert(parser.get_fingerprint({
-        "preclassified": [1, 1, 1, 1, 1],
-        "record": ["a", "b", "c", "d", "e"]}) == (5,))
-    assert(parser.get_fingerprint({
-        "preclassified": [1, 1, 0, 1, 1, 1, 0],
-        "record": ["a", "b", "c", "d", "e", "f", "g"]}) == (2, 3))
+                if len(set([heur_results["Name"], ner_results["Name"], ner_advanced_results["Name"], ner_advanced_full_name_results["Name"]])) > 1:
+                    w.writerow([
+                        heur_results["Name"],
+                        ner_results["Name"],
+                        ner_advanced_results["Name"],
+                        ner_advanced_full_name_results["Name"], l.strip()
+                    ])
