@@ -1,3 +1,7 @@
+"""
+Module which covers reading of XML file, retrieved from NAIS
+"""
+
 import re
 import logging
 
@@ -8,10 +12,31 @@ logger = logging.getLogger("reader")
 
 
 class EDRReader(object):
+    """
+    Simple reader class which allows to iterate over XML file
+    """
+
     def __init__(self, file_path):
+        """
+        Initializes EDRReader class
+
+        :param file_path: full path to the input file
+        :type file_path: str
+        """
+
         self.file_path = file_path
 
     def iter_docs(self):
+        """
+        Reads input file record by record. Regex magic is required to
+        cover records that was incorrectly exported and incomplete, thus
+        make whole XML file invalid
+        (happens sometime)
+
+        :returns: iterator over company records from registry
+        :rtype: collections.Iterable[dict]
+        """
+
         with open(self.file_path, 'r', encoding='cp1251') as fp:
             mapping = {
                 'NAME': 'name',
