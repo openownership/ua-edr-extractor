@@ -440,12 +440,15 @@ class EnsembleBasedParser(AbstractParser):
     # Still WIP
     """
 
-    def __init__(self, voters):
+    def __init__(self, voters, cutoff=1):
         """
         Initializes the class with list of voters
 
         :param voters: ensemble of voters (descendants of AbstractParser)
         :type voters: list of AbstractParser
+
+        :param cutoff: max number of votes to reject the entity
+        :type cutoff: int
         """
 
         self.voters = voters
@@ -465,7 +468,7 @@ class EnsembleBasedParser(AbstractParser):
 
         return rng1[0] <= rng2[1] and rng2[0] <= rng1[1]
 
-    def calculate_individual_votes(self, votes, cutoff=1):
+    def calculate_individual_votes(self, votes):
         """
         Simple heuristic that combines entities found by different
         parsers using voting with cutoff (i.e each entity gets
@@ -473,9 +476,6 @@ class EnsembleBasedParser(AbstractParser):
 
         :param votes: entities found by different voters
         :type votes: list of dicts
-        :param cutoff: max number of votes to reject the entity
-        :type cutoff: int
-
         :returns: combined results
         :rtype: dict
         """
@@ -485,7 +485,7 @@ class EnsembleBasedParser(AbstractParser):
         res_good = []
         res_bad = []
         for k, v in cntr.most_common():
-            if v > cutoff:
+            if v > self.cutoff:
                 res_good.append(k)
             else:
                 res_bad.append(k)

@@ -60,7 +60,7 @@ class EDRReader(object):
 
                 for el in etree.getchildren():
                     if el.tag == 'EDRPOU' and el.text and el.text.lstrip('0'):
-                        company[mapping[el.tag]] = int(el.text)
+                        company[mapping[el.tag]] = str(int(el.text)).rjust(8, "0")
                     elif el.tag == 'FOUNDERS':
                         for founder in el.getchildren():
                             founders_list.append(founder.text)
