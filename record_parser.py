@@ -23,7 +23,7 @@ class AbstractParser(object):
     Abstract class to parse founder records
     """
 
-    def parse_founders_record(self, founder, include_range=False):
+    def parse_founders_record(self, founder, include_range=False, include_stats=False):
         """
         Parse given tokenized founder record and return found entities
         """
@@ -169,7 +169,7 @@ class HeuristicBasedParser(AbstractParser):
         """
         return chunk in self.countries_set
 
-    def parse_founders_record(self, founder, include_range=False):
+    def parse_founders_record(self, founder, include_range=False, include_stats=False):
         """
         Parses founder record, tries to extract name, country and address from it
         using smart (actually not) heuristics
@@ -178,6 +178,8 @@ class HeuristicBasedParser(AbstractParser):
         :type founder: list of str
         :param include_range: also return range for each entity found
         :type include_range: bool
+        :param include_stats: also return number of entities of each class found in the text
+        :type include_stats: bool
         :returns: Results of the parsing. All found entities are returned in the
         "Name", "Country of residence", "Address of residence" fields, for example:
         {
@@ -259,6 +261,13 @@ class HeuristicBasedParser(AbstractParser):
             "Country of residence": countries,
             "Address of residence": addresses
         }
+
+        if include_stats:
+            result.update({
+                "total_names": len(names),
+                "total_countries": len(countries),
+                "total_addresses": len(addresses)
+            })
 
         if include_range:
             result.update({
@@ -370,7 +379,7 @@ class MITIEBasedParser(AbstractParser):
 
         self.ner = named_entity_extractor(model)
 
-    def parse_founders_record(self, founder, include_range=False):
+    def parse_founders_record(self, founder, include_range=False, include_stats=False):
         """
         Parses founder record, tries to extract name, country and address from it
         using smart ML-based models of MITIE
@@ -379,6 +388,8 @@ class MITIEBasedParser(AbstractParser):
         :type founder: list of str
         :param include_range: also return range for each entity found
         :type include_range: bool
+        :param include_stats: also return number of entities of each class found in the text
+        :type include_stats: bool
         :returns: Results of the parsing. All found entities are returned in the
         "Name", "Country of residence", "Address of residence" fields, for example:
         {
@@ -392,6 +403,13 @@ class MITIEBasedParser(AbstractParser):
             "name_rng": [(0, 2), (4, 6)],
             "country_rng": [(10, 14)],
             "address_rng": []
+        }
+        if include_stats is on, then the response will also carry 3 extra keys for stats,
+        for example:
+        {
+            "total_names": 2,
+            "total_countries": 1,
+            "total_addresses": 0
         }
         :rtype: dict
         """
@@ -423,6 +441,13 @@ class MITIEBasedParser(AbstractParser):
             "Address of residence": addresses,
         }
 
+        if include_stats:
+            result.update({
+                "total_names": len(names),
+                "total_countries": len(countries),
+                "total_addresses": len(addresses)
+            })
+
         if include_range:
             result.update({
                 "name_rng": name_rng,
@@ -451,6 +476,7 @@ class EnsembleBasedParser(AbstractParser):
         :type cutoff: int
         """
 
+        self.cutoff = cutoff
         self.voters = voters
 
     def does_intersect(self, rng1, rng2):
@@ -492,7 +518,7 @@ class EnsembleBasedParser(AbstractParser):
 
         return res_good, res_bad
 
-    def parse_founders_record(self, founder, include_range=False):
+    def parse_founders_record(self, founder, include_range=False, include_stats=False):
         """
         Parses founder record, tries to extract name, country and address from it
         using ensemble of parsers specified during class initialisation.
@@ -503,6 +529,8 @@ class EnsembleBasedParser(AbstractParser):
         :type founder: list of str
         :param include_range: also return range for each entity found
         :type include_range: bool
+        :param include_stats: also return number of entities of each class found in the text
+        :type include_stats: bool
         :returns: Results of the parsing. All found entities are returned in the
         "Name", "Country of residence", "Address of residence" fields, for example:
         {
@@ -517,6 +545,13 @@ class EnsembleBasedParser(AbstractParser):
             "country_rng": [(10, 14)],
             "address_rng": []
         }
+        if include_stats is on, then the response will also carry 3 extra keys for stats,
+        for example:
+        {
+            "total_names": 2,
+            "total_countries": 1,
+            "total_addresses": 0
+        }
         :rtype: dict
         """
 
@@ -526,13 +561,17 @@ class EnsembleBasedParser(AbstractParser):
             "Address of residence": [],
             "name_rng": [],
             "country_rng": [],
-            "address_rng": []
+            "address_rng": [],
+            "total_names": 0,
+            "total_countries": 0,
+            "total_addresses": 0,
         }
 
         for voter in self.voters:
-            res = voter.parse_founders_record(rec, include_range=True)
+            res = voter.parse_founders_record(founder, include_range=True, include_stats=include_stats)
             for k in res:
-                combined[k] += res[k]
+                if not k.startswith("total_"):
+                    combined[k] += res[k]
 
         result = {
             "Name": [],
@@ -549,23 +588,32 @@ class EnsembleBasedParser(AbstractParser):
             "address_rng_outliers": []
         }
 
-        for k1, k2 in [
-                ("name_rng", "Name"),
-                ("country_rng", "Country of residence"),
-                ("address_rng", "Address of residence")]:
+        for k1, k2, k3 in [
+                ("name_rng", "Name", "total_names"),
+                ("country_rng", "Country of residence", "total_countries"),
+                ("address_rng", "Address of residence", "total_addresses")]:
 
             good_rngs, bad_rngs = self.calculate_individual_votes(combined[k1])
 
             result[k1] = good_rngs
-            result[k2] = [" ".join(rec[r[0]:r[-1]]) for r in good_rngs]
+            result[k3] = len(good_rngs)
+            result[k2] = [" ".join(founder[r[0]:r[-1]]) for r in good_rngs]
 
             result[k1 + "_outliers"] = bad_rngs
-            result[k2 + "_outliers"] = [" ".join(rec[r[0]:r[-1]]) for r in bad_rngs]
+            result[k2 + "_outliers"] = [" ".join(founder[r[0]:r[-1]]) for r in bad_rngs]
 
         if not include_range:
             del result["name_rng"]
             del result["country_rng"]
             del result["address_rng"]
+            del result["name_rng_outliers"]
+            del result["country_rng_outliers"]
+            del result["address_rng_outliers"]
+
+        if not include_stats:
+            del result["total_names"]
+            del result["total_addresses"]
+            del result["total_countries"]
 
         return result
 
@@ -589,8 +637,6 @@ if __name__ == '__main__':
             "expirements/edr_ner_model_combined_embeddings_address_class_full.dat"),
         MITIEBasedParser(
             "expirements/edr_ner_model_combined_embeddings_name_class_syntetic.dat"),
-        # MITIEBasedParser(
-        #     "expirements/edr_ner_model_combined_embeddings_3classes_200k.dat"),
     ])
 
     with open("test_data/combined.csv", "w") as fp_out:
@@ -614,28 +660,3 @@ if __name__ == '__main__':
 
                 if i > 10000:
                     break
-
-    # import csv
-
-    # with open("test_data/difference_heur_vs_simple_ner_vs_advanced_ner.csv", "w") as fp_out:
-    #     w = csv.writer(fp_out, dialect="excel")
-
-    #     with open("test_data/output_founders_alt_tokenization.txt", "r") as fp:
-    #         for i, l in enumerate(fp):
-    #             rec = l.strip().split(" ")
-    #             ner_results = ner_parser.parse_founders_record(rec)
-    #             ner_advanced_results = ner_advanced_parser.parse_founders_record(rec)
-    #             ner_advanced_full_name_results = ner_advanced_full_name_parser.parse_founders_record(rec)
-    #             heur_results = heur_parser.parse_founders_record(rec)
-
-    #             if len(set([
-    #                     tuple(heur_results["Name"]),
-    #                     tuple(ner_results["Name"]),
-    #                     tuple(ner_advanced_results["Name"]),
-    #                     tuple(ner_advanced_full_name_results["Name"])])) > 1:
-    #                 w.writerow([
-    #                     heur_results["Name"],
-    #                     ner_results["Name"],
-    #                     ner_advanced_results["Name"],
-    #                     ner_advanced_full_name_results["Name"], l.strip()
-    #                 ])

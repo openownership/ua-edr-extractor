@@ -3,3 +3,4 @@ tokenize-uk==0.2.0
 -e git+https://github.com/mit-nlp/MITIE.git
 PyYAML==3.12
 werkzeug
+PTable

@@ -8,10 +8,9 @@ import argparse
 import logging
 import sys
 import csv
+from collections import defaultdict
 
-# TODO: replace with werkzeug
-# from werkzeug.utils import import_string
-from utils import import_string
+from werkzeug.utils import import_string
 
 logger = logging.getLogger("evaluate")
 
@@ -22,8 +21,12 @@ class Pipeline(object):
         if isinstance(v, str) and v.startswith("!"):
             return import_string(v[1:])
 
-        if isinstance(v, (list, tuple)) and v[0].startswith("!"):
-            return self.load_class(v)
+        if isinstance(v, (list, tuple)):
+            if v and all(map(lambda x: isinstance(x, (list, tuple)), v)):
+                return [self.resolve_param(x) for x in v]
+
+            if v[0].startswith("!"):
+                return self.load_class(v)
 
         return v
 
@@ -78,12 +81,12 @@ class Pipeline(object):
 
             if self.beneficiary_categorizer.classify(founder):
                 rec["Is beneficial owner"] = True
-                owner = self.parser.parse_founders_record(founder)
+                owner = self.parser.parse_founders_record(founder, include_stats=True)
                 rec.update(owner)
 
             yield rec
 
-    def pump_it(self, flatten=True):
+    def pump_it(self):
         """
         Iterates over the input file and processes all the records found
 
@@ -104,29 +107,43 @@ class Pipeline(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("profile_yaml", help='YAML file with configuration of the pipeline, input and output files')
+    parser.add_argument("--show_stats", help='Show also global stats', default=False, action="store_true")
 
     args = parser.parse_args()
 
     with open(args.profile_yaml, "r") as fp:
         profile = yaml.load(fp.read())
-        # TODO: validate the object
 
+        # TODO: validate the object
         try:
             pipeline = Pipeline(profile["pipeline"])
             output_csv = profile["output_csv"]
 
             result = 0
+            bo_result = 0
 
             accum = []
+            stats = defaultdict(int)
+            counts = defaultdict(int)
             keys = set()
 
-            for res in pipeline.pump_it(flatten=True):
+            for res in pipeline.pump_it():
+                if res["Is beneficial owner"]:
+                    bo_result += 1
+
                 # Ugly and memory hungry :(
                 if not profile["export_only_beneficial_owners"]:
                     accum.append(res)
                 else:
                     if res["Is beneficial owner"]:
                         accum.append(res)
+
+                for k in res:
+                    if k.startswith("total_"):
+                        stats[k] += res[k]
+
+                        if res[k]:
+                            counts[k] += 1
 
                 keys |= set(res.keys())
 
@@ -140,6 +157,30 @@ if __name__ == '__main__':
                 w.writerows(accum)
 
             logger.info("Successfully pumped {} records".format(result))
+
+            if args.show_stats:
+                from prettytable import PrettyTable
+                x = PrettyTable()
+                stat_keys = [k for k in keys if k.startswith("total_")]
+                x.field_names = ["metric"] + stat_keys + ["Total records with BO"] + ["Total records processed"]
+
+                x.add_row(["Found entities"] + [stats[k] for k in stat_keys] + [bo_result, result])
+                x.add_row(["Records with at least one entity"] + [counts[k] for k in stat_keys] + [bo_result, result])
+
+                if bo_result > 0:
+                    x.add_row(
+                        ["Found entities avg"] +
+                        ["{:2.3f}%".format(stats[k] / bo_result * 100) for k in stat_keys] +
+                        ["100%", "100%"]
+                    )
+                    x.add_row(
+                        ["Records with at least one entity, avg"] +
+                        ["{:2.3f}%".format(counts[k] / bo_result * 100) for k in stat_keys] +
+                        ["100%", "100%"]
+                    )
+
+                print(x)
+
         except KeyError as e:
             logger.error("Cannot parse profile file: %s" % e)
             exit(1)

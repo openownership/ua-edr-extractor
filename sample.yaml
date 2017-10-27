@@ -5,18 +5,28 @@ pipeline:
     preprocessor:
         - preprocessor.PreProcessor
         - tokenizer: "!tokenize_uk.tokenize_words"
-
     beneficiary_categorizer:
         - categorizer.HasBeneficiaryOwnershipRecord
-
     parser:
-        - record_parser.HeuristicBasedParser
-        # - record_parser.EnsembleBasedParser
-        # - voters:
-        #     - "!record_parser.HeuristicBasedParser"
-        #     - "!record_parser.MITIEBasedParser"
-        # - cutoff: 0
+        - record_parser.EnsembleBasedParser
+        -
+            voters:
+                -
+                    - "!record_parser.HeuristicBasedParser"
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_name_class_syntetic.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_name_class_full.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_3class_all_data.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_3class_syntetic.dat
+            cutoff: 0
 
 output_csv: test_data/output.csv
-limit: 10000
+limit: 100000
 export_only_beneficial_owners: True
