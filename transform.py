@@ -126,7 +126,16 @@ if __name__ == '__main__':
         '--limit', help='Process only first N records', dest="limit", default=0,
         type=int)
 
+    parser.add_argument(
+        '--log', help='Logging level', dest="loglevel", default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+
     args = parser.parse_args()
+
+    numeric_level = getattr(logging, args.loglevel.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: %s' % args.loglevel)
+    logging.basicConfig(level=numeric_level)
 
     pump = Transformer(args.input_xml)
 

@@ -25,8 +25,9 @@ pipeline:
                 -
                     - "!record_parser.MITIEBasedParser"
                     - model: expirements/edr_ner_model_combined_embeddings_3class_syntetic.dat
-            cutoff: 0
+            cutoff: 2
+            merge_overlapping: True
 
-output_csv: test_data/output.csv
-limit: 100000
-export_only_beneficial_owners: True
+output_csv: test_data/output_cutoff2_merged.csv
+# limit: 100000
+export_only_beneficial_owners: False

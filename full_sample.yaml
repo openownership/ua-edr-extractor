@@ -1,0 +1,66 @@
+pipeline:
+    reader:
+        - reader.EDRReader
+        - file_path: "test_data/15.1-EX_XML_EDR_UO.xml"
+    preprocessor:
+        - preprocessor.PreProcessor
+        - tokenizer: "!tokenize_uk.tokenize_words"
+    beneficiary_categorizer:
+        - categorizer.HasBeneficiaryOwnershipRecord
+    parser:
+        - record_parser.EnsembleBasedParser
+        -
+            voters:
+                -
+                    - "!record_parser.HeuristicBasedParser"
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_3class_all_data.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_3class_syntetic.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_3classes_200k.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_3classes_full.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_address_class_full.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_country_class_full.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_name_class_full.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_name_class_syntetic.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_gigaword_embeddings.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_gigaword_embeddings_local_run.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_gigaword_embeddings_local_run_plus_address.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/new_ner_model.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: test_data/edr_ner_model_edr_embeddings.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: test_data/edr_ner_model_edr_embeddings_100k.dat
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: test_data/edr_ner_model_gigaword_embeddings.dat
+            cutoff: 2
+            merge_overlapping: True
+
+output_csv: test_data/output_everything2_merged_filtered_and_stripped_everything.csv
+# limit: 100000
+export_only_beneficial_owners: False

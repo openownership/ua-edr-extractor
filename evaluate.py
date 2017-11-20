@@ -109,7 +109,16 @@ if __name__ == '__main__':
     parser.add_argument("profile_yaml", help='YAML file with configuration of the pipeline, input and output files')
     parser.add_argument("--show_stats", help='Show also global stats', default=False, action="store_true")
 
+    parser.add_argument(
+        '--log', help='Logging level', dest="loglevel", default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+
     args = parser.parse_args()
+
+    numeric_level = getattr(logging, args.loglevel.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: %s' % args.loglevel)
+    logging.basicConfig(level=numeric_level)
 
     with open(args.profile_yaml, "r") as fp:
         profile = yaml.load(fp.read())
@@ -132,7 +141,7 @@ if __name__ == '__main__':
                     bo_result += 1
 
                 # Ugly and memory hungry :(
-                if not profile["export_only_beneficial_owners"]:
+                if not profile.get("export_only_beneficial_owners"):
                     accum.append(res)
                 else:
                     if res["Is beneficial owner"]:
@@ -148,11 +157,11 @@ if __name__ == '__main__':
                 keys |= set(res.keys())
 
                 result += 1
-                if profile["limit"] and result >= profile["limit"]:
+                if profile.get("limit") and result >= profile["limit"]:
                     break
 
             with open(profile["output_csv"], "w") as f_out:
-                w = csv.DictWriter(f_out, fieldnames=keys, dialect="excel")
+                w = csv.DictWriter(f_out, fieldnames=sorted(keys), dialect="excel")
                 w.writeheader()
                 w.writerows(accum)
 
@@ -161,7 +170,7 @@ if __name__ == '__main__':
             if args.show_stats:
                 from prettytable import PrettyTable
                 x = PrettyTable()
-                stat_keys = [k for k in keys if k.startswith("total_")]
+                stat_keys = sorted([k for k in keys if k.startswith("total_")])
                 x.field_names = ["metric"] + stat_keys + ["Total records with BO"] + ["Total records processed"]
 
                 x.add_row(["Found entities"] + [stats[k] for k in stat_keys] + [bo_result, result])

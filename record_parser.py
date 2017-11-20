@@ -13,6 +13,7 @@ import os
 import logging
 from enum import IntEnum
 from collections import Counter
+from itertools import combinations
 from mitie import named_entity_extractor
 
 logger = logging.getLogger("parser")
@@ -20,14 +21,75 @@ logger = logging.getLogger("parser")
 
 class AbstractParser(object):
     """
-    Abstract class to parse founder records
+    Abstract class to parse founder records with some extra utils
     """
+
+    def __init__(self):
+        """
+        Initialize the class and load some small datasets for post-processing
+        """
+        with open("datasets/names_blacklist.txt") as fp:
+            self.tokens_to_exclude_from_names = set(map(str.strip, fp))
+
+        with open("datasets/addresses_blacklist.txt") as fp:
+            self.tokens_to_strip_from_addresses = set(map(str.strip, fp))
+
+        # Just using the same file as for addresses for now
+        with open("datasets/addresses_blacklist.txt") as fp:
+            self.tokens_to_strip_from_countries = set(map(str.strip, fp))
 
     def parse_founders_record(self, founder, include_range=False, include_stats=False):
         """
         Parse given tokenized founder record and return found entities
         """
         raise NotImplementedError()
+
+    def filter_name(self, tokenized_name):
+        """
+        Check if the name contains garbage tokens that should be filtered out
+
+        :param tokenized_name: well, tokenized_name
+        :type tokenized_name: list of str
+        :returns: flag if that name should be dropped from results
+        :rtype: bool
+        """
+        return bool(self.tokens_to_exclude_from_names.intersection(tokenized_name))
+
+    def _strip_tokens(self, tokenized_str, tokens_to_strip):
+        """
+        Strip blacklisted tokens from both sides of tokenized_str
+
+        :param tokenized_str: tokenized string
+        :type tokenized_str: list of str
+        :returns: slice of the input string after striping
+        :rtype: tuple of int
+        """
+        # Let's do it naive way
+        lstop = 0
+
+        for i in range(len(tokenized_str)):
+            if tokenized_str[i] in tokens_to_strip:
+                lstop += 1
+            else:
+                break
+
+        tokenized_str = tokenized_str[lstop:]
+
+        rstop = 0
+
+        for i in range(len(tokenized_str)):
+            if tokenized_str[-i - 1] in tokens_to_strip:
+                rstop += 1
+            else:
+                break
+
+        return lstop, -rstop
+
+    def strip_address(self, tokenized_address):
+        return self._strip_tokens(tokenized_address, self.tokens_to_strip_from_addresses)
+
+    def strip_country(self, tokenized_country):
+        return self._strip_tokens(tokenized_country, self.tokens_to_strip_from_countries)
 
 
 class FingerprintClass(IntEnum):
@@ -59,6 +121,12 @@ class FingerprintClass(IntEnum):
         """
         Class method to analyze binary vector made of founder record and return
         a class above using simple rules
+
+        :param fingerprint: binary vector to analyze
+        :type fingerprint: list of bool
+        :returns: result of classification
+        :rtype: int
+
         """
 
         if len(fingerprint) == 0:
@@ -114,6 +182,8 @@ class HeuristicBasedParser(AbstractParser):
             include=[os.path.join(basedir, "countries.txt")],
             exclude=[]
         )
+
+        super(HeuristicBasedParser, self).__init__()
 
     def load_dicts(self, include, exclude):
         """
@@ -215,8 +285,15 @@ class HeuristicBasedParser(AbstractParser):
         if fingerprint_cls in [
                 FingerprintClass.IDEAL, FingerprintClass.COMPLICATED,
                 FingerprintClass.ALMOST_IDEAL, FingerprintClass.COMPLICATED_AND_STRANGE]:
-            name_rng = [self.get_longest_range(name_rec)]
-            names = [" ".join(name_rec["record"][n_rng[0]:n_rng[1]]) for n_rng in name_rng]
+
+            # In the sake of (un)clarity we are sticking here to the fact that
+            # in general there might be more than one range
+            for n_rng in [self.get_longest_range(name_rec)]:
+                if self.filter_name(name_rec["record"][n_rng[0]:n_rng[1]]):
+                    continue
+
+                name_rng.append(n_rng)
+                names.append(" ".join(name_rec["record"][n_rng[0]:n_rng[1]]))
 
         country_rec = {
             "record": founder,
@@ -228,8 +305,6 @@ class HeuristicBasedParser(AbstractParser):
         if country_fingerprint in [(1,), (2, ), (3, )]:
             country = self.get_longest_range(country_rec)
             country_rng = [country]
-
-            countries = [" ".join(country_rec["record"][c_rng[0]:c_rng[1]]) for c_rng in country_rng]
 
             # If found country is not at the end of the string
             if country[1] < len(country_rec["record"]):
@@ -251,10 +326,36 @@ class HeuristicBasedParser(AbstractParser):
 
                 # Performing sanity check (ie address range is valid)
                 if address_rng[0] < address_rng[1]:
-                    addresses = [" ".join(country_rec["record"][address_rng[0]:address_rng[1]])]
                     address_rng = [tuple(address_rng)]
                 else:
                     address_rng = []
+
+        final_address_rng = []
+        for rng in address_rng:
+            rng_start, rng_stop = self.strip_address(country_rec["record"][rng[0]:rng[1]])
+            if rng[0] + rng_start >= rng[1] + rng_stop:
+                logger.debug("Dropping heuristic degenerated case {}".format(
+                    " ".join(country_rec["record"][rng[0]:rng[1]]))
+                )
+                continue
+
+            rng = (rng[0] + rng_start, rng[1] + rng_stop)
+            final_address_rng.append(rng)
+            addresses.append(" ".join(country_rec["record"][rng[0]:rng[1]]))
+
+        # Little copy-paste wouldn't hurt
+        final_country_rng = []
+        for rng in country_rng:
+            rng_start, rng_stop = self.strip_country(country_rec["record"][rng[0]:rng[1]])
+            if rng[0] + rng_start >= rng[1] + rng_stop:
+                logger.debug("Dropping heuristic degenerated case {}".format(
+                    " ".join(country_rec["record"][rng[0]:rng[1]]))
+                )
+                continue
+
+            rng = (rng[0] + rng_start, rng[1] + rng_stop)
+            final_country_rng.append(rng)
+            countries.append(" ".join(country_rec["record"][rng[0]:rng[1]]))
 
         result = {
             "Name": names,
@@ -272,8 +373,8 @@ class HeuristicBasedParser(AbstractParser):
         if include_range:
             result.update({
                 "name_rng": name_rng,
-                "country_rng": country_rng,
-                "address_rng": address_rng
+                "country_rng": final_country_rng,
+                "address_rng": final_address_rng
             })
 
         return result
@@ -378,6 +479,7 @@ class MITIEBasedParser(AbstractParser):
         """
 
         self.ner = named_entity_extractor(model)
+        super(MITIEBasedParser, self).__init__()
 
     def parse_founders_record(self, founder, include_range=False, include_stats=False):
         """
@@ -426,12 +528,30 @@ class MITIEBasedParser(AbstractParser):
             names = []
             for rng, tag, _ in entities:
                 if tag == "name":
+                    if self.filter_name(founder[i] for i in rng):
+                        continue
                     name_rng.append((rng.start, rng.stop))
                     names.append(" ".join(founder[i] for i in rng))
                 elif tag == "country":
+                    slice_start, slice_stop = self.strip_country(list(founder[i] for i in rng))
+
+                    if rng.start + slice_start >= rng.stop + slice_stop:
+                        logger.debug("Dropping degenerated case {}".format(" ".join(founder[i] for i in rng)))
+                        continue
+
+                    rng = range(rng.start + slice_start, rng.stop + slice_stop)
+
                     country_rng.append((rng.start, rng.stop))
                     countries.append(" ".join(founder[i] for i in rng))
                 elif tag == "address":
+                    slice_start, slice_stop = self.strip_address(list(founder[i] for i in rng))
+
+                    if rng.start + slice_start >= rng.stop + slice_stop:
+                        logger.debug("Dropping degenerated case {}".format(" ".join(founder[i] for i in rng)))
+                        continue
+
+                    rng = range(rng.start + slice_start, rng.stop + slice_stop)
+
                     address_rng.append((rng.start, rng.stop))
                     addresses.append(" ".join(founder[i] for i in rng))
 
@@ -465,7 +585,7 @@ class EnsembleBasedParser(AbstractParser):
     # Still WIP
     """
 
-    def __init__(self, voters, cutoff=1):
+    def __init__(self, voters, cutoff=1, merge_overlapping=False):
         """
         Initializes the class with list of voters
 
@@ -474,10 +594,15 @@ class EnsembleBasedParser(AbstractParser):
 
         :param cutoff: max number of votes to reject the entity
         :type cutoff: int
+
+        :param merge_overlapping: merge together overlapping entities
+        returned by different voters
+        :type merge_overlapping: bool
         """
 
         self.cutoff = cutoff
         self.voters = voters
+        self.merge_overlapping = merge_overlapping
 
     def does_intersect(self, rng1, rng2):
         """
@@ -507,6 +632,28 @@ class EnsembleBasedParser(AbstractParser):
         """
 
         cntr = Counter(votes)
+
+        if self.merge_overlapping:
+            has_overlapping = True
+
+            while has_overlapping:
+                has_overlapping = False
+                for reg1, reg2 in combinations(cntr, 2):
+                    if self.does_intersect(reg1, reg2):
+                        has_overlapping = True
+                        v1 = cntr[reg1]
+                        v2 = cntr[reg2]
+                        del cntr[reg1]
+                        del cntr[reg2]
+                        merged_reg = (min(reg1[0], reg2[0]), max(reg1[1], reg2[1]))
+                        cntr[merged_reg] += v1 + v2
+
+                        logger.debug("Found overlapping entities {}, {}, merging them into {}".format(
+                            reg1, reg2, merged_reg)
+                        )
+
+                        # All over again
+                        break
 
         res_good = []
         res_bad = []
