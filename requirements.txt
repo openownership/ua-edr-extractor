@@ -1,6 +1,6 @@
 nltk==3.2.4
 tokenize-uk==0.2.0
--e git+https://github.com/mit-nlp/MITIE.git
+git+https://github.com/mit-nlp/MITIE.git#egg=MITIE
 PyYAML==3.12
 werkzeug
 PTable
