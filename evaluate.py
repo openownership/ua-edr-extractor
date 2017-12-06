@@ -111,6 +111,8 @@ if __name__ == '__main__':
     parser.add_argument("--output_csv", help='The path for the CSV output file - takes precedence over the file path set in the profile')
     parser.add_argument("--show_stats", help='Show also global stats', default=False, action="store_true")
 
+    parser.add_argument("--limit", type=int, help="Limit the number of results - takes precedence over the limit set in the profile")
+
     parser.add_argument(
         '--log', help='Logging level', dest="loglevel", default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
@@ -165,7 +167,8 @@ if __name__ == '__main__':
                 keys |= set(res.keys())
 
                 result += 1
-                if profile.get("limit") and result >= profile["limit"]:
+                limit = args.limit or profile.get("limit")
+                if limit and result >= limit:
                     break
 
             with open(output_csv, "w") as f_out:
