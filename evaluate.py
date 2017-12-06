@@ -129,7 +129,9 @@ if __name__ == '__main__':
         try:
             # Change the reader config if a source file was specified via args
             if args.source_xml:
-                profile["pipeline"]["reader"][1]["file_path"] = args.source_xml
+                reader_file_path_entry = next((x for x in profile["pipeline"]["reader"] if isinstance(x, dict) and x.get("file_path")), None)
+                if reader_file_path_entry:
+                    reader_file_path_entry["file_path"] = args.source_xml
 
             pipeline = Pipeline(profile["pipeline"])
             output_csv = args.output_csv or profile["output_csv"]
