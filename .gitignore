@@ -104,3 +104,7 @@ ENV/
 expirements/
 test_data/
 .DS_Store
+
+src
+
+config.yaml

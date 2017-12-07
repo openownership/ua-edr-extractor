@@ -107,7 +107,11 @@ class Pipeline(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("profile_yaml", help='YAML file with configuration of the pipeline, input and output files')
+    parser.add_argument("--source_xml", help='The source data in XML format - takes precedence over the file path set in the profile')
+    parser.add_argument("--output_csv", help='The path for the CSV output file - takes precedence over the file path set in the profile')
     parser.add_argument("--show_stats", help='Show also global stats', default=False, action="store_true")
+
+    parser.add_argument("--limit", type=int, help="Limit the number of results - takes precedence over the limit set in the profile")
 
     parser.add_argument(
         '--log', help='Logging level', dest="loglevel", default="INFO",
@@ -125,8 +129,14 @@ if __name__ == '__main__':
 
         # TODO: validate the object
         try:
+            # Change the reader config if a source file was specified via args
+            if args.source_xml:
+                reader_file_path_entry = next((x for x in profile["pipeline"]["reader"] if isinstance(x, dict) and x.get("file_path")), None)
+                if reader_file_path_entry:
+                    reader_file_path_entry["file_path"] = args.source_xml
+
             pipeline = Pipeline(profile["pipeline"])
-            output_csv = profile["output_csv"]
+            output_csv = args.output_csv or profile["output_csv"]
 
             result = 0
             bo_result = 0
@@ -157,10 +167,11 @@ if __name__ == '__main__':
                 keys |= set(res.keys())
 
                 result += 1
-                if profile.get("limit") and result >= profile["limit"]:
+                limit = args.limit or profile.get("limit")
+                if limit and result >= limit:
                     break
 
-            with open(profile["output_csv"], "w") as f_out:
+            with open(output_csv, "w") as f_out:
                 w = csv.DictWriter(f_out, fieldnames=sorted(keys), dialect="excel")
                 w.writeheader()
                 w.writerows(accum)
