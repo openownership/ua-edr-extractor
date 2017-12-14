@@ -20,4 +20,4 @@ pipeline:
             merge_overlapping: True
 
 output_csv: test_data/output_simple.csv
-export_only_beneficial_owners: False
+export_only_beneficial_owners: True

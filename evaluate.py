@@ -86,6 +86,10 @@ class Pipeline(object):
         base_rec = {
             "Company name": company["name"],
             "Company number": company["edrpou"],
+            "Company address": company["location"],
+            "Company head": company["head"],
+            "Company profile": company["company_profile"],
+            "Company status": company["status"],
             "Is beneficial owner": False
         }
 
@@ -101,9 +105,12 @@ class Pipeline(object):
 
             if self.beneficiary_categorizer.classify(founder):
                 rec["Is beneficial owner"] = True
+                owner = self.parser.parse_founders_record(founder, include_stats=True)
+                rec.update(owner)
 
-            owner = self.parser.parse_founders_record(founder, include_stats=True)
-            rec.update(owner)
+            # That should be enabled once we'll decide to also parse founders
+            # owner = self.parser.parse_founders_record(founder, include_stats=True)
+            # rec.update(owner)
 
             yield rec
 
@@ -132,9 +139,28 @@ class Pipeline(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile_yaml", help='YAML file with configuration of the pipeline, input and output files')
-    parser.add_argument("--show_stats", help='Show also global stats', default=False, action="store_true")
 
+    parser.add_argument(
+        "profile_yaml",
+        help='YAML file with configuration of the pipeline, input and output files')
+    parser.add_argument(
+        "--source_xml",
+        help='The source data in XML format - takes precedence over the file path set in the profile'
+    )
+    parser.add_argument(
+        "--output_csv",
+        help='The path for the CSV output file - takes precedence over the file path set in the profile'
+    )
+    parser.add_argument(
+        "--show_stats",
+        help='Show also global stats',
+        default=False, action="store_true"
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="Limit the number of results - takes precedence over the limit set in the profile"
+    )
     parser.add_argument(
         '--log', help='Logging level', dest="loglevel", default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
@@ -151,8 +177,19 @@ if __name__ == '__main__':
 
         # TODO: validate the object
         try:
+            # Change the reader config if a source file was specified via args
+            if args.source_xml:
+                reader_file_path_entry = next(
+                    (x for x in profile["pipeline"]["reader"] if isinstance(x, dict) and x.get("file_path")),
+                    None
+                )
+                if reader_file_path_entry:
+                    reader_file_path_entry["file_path"] = args.source_xml
+
             pipeline = Pipeline(profile["pipeline"])
-            output_csv = profile["output_csv"]
+            output_csv = args.output_csv or profile["output_csv"]
+            limit = args.limit or profile.get("limit")
+            export_only_bo = bool(profile.get("export_only_beneficial_owners"))
 
             result = 0
             bo_result = 0
@@ -162,22 +199,26 @@ if __name__ == '__main__':
             counts = defaultdict(int)
             keys = set()
 
-            with open(profile["output_csv"], "w") as f_out:
+            with open(output_csv, "w") as f_out:
                 w = None
                 for res in pipeline.pump_it():
-                    if w is None:
-                        w = csv.DictWriter(f_out, fieldnames=sorted(res.keys()), dialect="excel")
-                        w.writeheader()
+                    result += 1
 
                     if res["Is beneficial owner"]:
                         bo_result += 1
 
-                    # Ugly and memory hungry :(
-                    if not profile.get("export_only_beneficial_owners"):
+                    # There are still a bug when exporting to CSV with export_only_bo=False
+                    if not export_only_bo:
+                        if w is None:
+                            w = csv.DictWriter(f_out, fieldnames=sorted(res.keys()), dialect="excel")
+                            w.writeheader()
+
                         w.writerow(res)
-                    else:
-                        if res["Is beneficial owner"]:
-                            w.writerow(res)
+                    elif res["Is beneficial owner"]:
+                        if w is None:
+                            w = csv.DictWriter(f_out, fieldnames=sorted(res.keys()), dialect="excel")
+                            w.writeheader()
+                        w.writerow(res)
 
                     for k in res:
                         if k.startswith("total_"):
@@ -186,10 +227,7 @@ if __name__ == '__main__':
                             if res[k]:
                                 counts[k] += 1
 
-                    keys |= set(res.keys())
-
-                    result += 1
-                    if profile.get("limit") and result >= profile["limit"]:
+                    if limit and (bo_result if export_only_bo else result) >= limit:
                         break
 
             logger.info("Successfully pumped {} records".format(result))
