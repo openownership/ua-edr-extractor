@@ -4,9 +4,9 @@ YAML file, run the tests and save results/show statistic
 """
 import yaml
 import json
+from hashlib import sha1
 import argparse
 import logging
-import sys
 import csv
 from collections import defaultdict
 
@@ -16,7 +16,28 @@ logger = logging.getLogger("evaluate")
 
 
 # TODO: merge with transform.Transformer?
+# OR move it to separate file?
 class Pipeline(object):
+    def __init__(self, config):
+        self.reader = None
+        self.preprocessor = None
+        self.beneficiary_categorizer = None
+        self.parser = None
+
+        if config.get("reader"):
+            self.reader = self.load_class(config["reader"])
+
+        if config.get("preprocessor"):
+            self.preprocessor = self.load_class(config["preprocessor"])
+
+        if config.get("beneficiary_categorizer"):
+            self.beneficiary_categorizer = self.load_class(config["beneficiary_categorizer"])
+
+        if config.get("parser"):
+            self.parser = self.load_class(config["parser"])
+
+        self.config_key = sha1(json.dumps(config, sort_keys=True).encode("utf8")).hexdigest()
+
     def resolve_param(self, v):
         if isinstance(v, str) and v.startswith("!"):
             return import_string(v[1:])
@@ -46,12 +67,6 @@ class Pipeline(object):
 
             return import_string(class_name)(**args)
 
-    def __init__(self, config):
-        self.reader = self.load_class(config["reader"])
-        self.preprocessor = self.load_class(config["preprocessor"])
-        self.beneficiary_categorizer = self.load_class(config["beneficiary_categorizer"])
-        self.parser = self.load_class(config["parser"])
-
     def transform_company(self, company):
         """
         Applies pre-process, categorization and parsing steps to record from the
@@ -62,6 +77,11 @@ class Pipeline(object):
         :returns: Results of processing
         :rtype: Dict
         """
+
+        assert (
+            self.preprocessor and
+            self.beneficiary_categorizer and self.parser
+        )
 
         base_rec = {
             "Company name": company["name"],
@@ -81,8 +101,9 @@ class Pipeline(object):
 
             if self.beneficiary_categorizer.classify(founder):
                 rec["Is beneficial owner"] = True
-                owner = self.parser.parse_founders_record(founder, include_stats=True)
-                rec.update(owner)
+
+            owner = self.parser.parse_founders_record(founder, include_stats=True)
+            rec.update(owner)
 
             yield rec
 
@@ -93,6 +114,11 @@ class Pipeline(object):
         :returns: processed companies
         :rtype: iterator
         """
+
+        assert (
+            self.reader and self.preprocessor and
+            self.beneficiary_categorizer and self.parser
+        )
 
         for company in self.reader.iter_docs():
             for res in self.transform_company(company):
@@ -136,34 +162,35 @@ if __name__ == '__main__':
             counts = defaultdict(int)
             keys = set()
 
-            for res in pipeline.pump_it():
-                if res["Is beneficial owner"]:
-                    bo_result += 1
-
-                # Ugly and memory hungry :(
-                if not profile.get("export_only_beneficial_owners"):
-                    accum.append(res)
-                else:
-                    if res["Is beneficial owner"]:
-                        accum.append(res)
-
-                for k in res:
-                    if k.startswith("total_"):
-                        stats[k] += res[k]
-
-                        if res[k]:
-                            counts[k] += 1
-
-                keys |= set(res.keys())
-
-                result += 1
-                if profile.get("limit") and result >= profile["limit"]:
-                    break
-
             with open(profile["output_csv"], "w") as f_out:
-                w = csv.DictWriter(f_out, fieldnames=sorted(keys), dialect="excel")
-                w.writeheader()
-                w.writerows(accum)
+                w = None
+                for res in pipeline.pump_it():
+                    if w is None:
+                        w = csv.DictWriter(f_out, fieldnames=sorted(res.keys()), dialect="excel")
+                        w.writeheader()
+
+                    if res["Is beneficial owner"]:
+                        bo_result += 1
+
+                    # Ugly and memory hungry :(
+                    if not profile.get("export_only_beneficial_owners"):
+                        w.writerow(res)
+                    else:
+                        if res["Is beneficial owner"]:
+                            w.writerow(res)
+
+                    for k in res:
+                        if k.startswith("total_"):
+                            stats[k] += res[k]
+
+                            if res[k]:
+                                counts[k] += 1
+
+                    keys |= set(res.keys())
+
+                    result += 1
+                    if profile.get("limit") and result >= profile["limit"]:
+                        break
 
             logger.info("Successfully pumped {} records".format(result))
 

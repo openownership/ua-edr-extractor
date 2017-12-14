@@ -55,7 +55,7 @@ class EDRReader(object):
                 try:
                     etree = ET.fromstring(chunk.group(0))
                 except ParseError:
-                    self.stderr.write('Cannot parse record #{}, {}'.format(i, chunk))
+                    logger.error('Cannot parse record #{}, {}'.format(i, chunk))
                     continue
 
                 for el in etree.getchildren():

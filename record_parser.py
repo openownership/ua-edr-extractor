@@ -10,6 +10,7 @@ different models (for example, heuristic based and ML-based)
 
 
 import os
+import os.path
 import logging
 from enum import IntEnum
 from collections import Counter
@@ -28,14 +29,16 @@ class AbstractParser(object):
         """
         Initialize the class and load some small datasets for post-processing
         """
-        with open("datasets/names_blacklist.txt") as fp:
+        self.basedir = os.path.dirname(__file__)
+
+        with open(os.path.join(self.basedir, "datasets/names_blacklist.txt")) as fp:
             self.tokens_to_exclude_from_names = set(map(str.strip, fp))
 
-        with open("datasets/addresses_blacklist.txt") as fp:
+        with open(os.path.join(self.basedir, "datasets/addresses_blacklist.txt")) as fp:
             self.tokens_to_strip_from_addresses = set(map(str.strip, fp))
 
         # Just using the same file as for addresses for now
-        with open("datasets/addresses_blacklist.txt") as fp:
+        with open(os.path.join(self.basedir, "datasets/addresses_blacklist.txt")) as fp:
             self.tokens_to_strip_from_countries = set(map(str.strip, fp))
 
     def parse_founders_record(self, founder, include_range=False, include_stats=False):
@@ -171,19 +174,20 @@ class HeuristicBasedParser(AbstractParser):
         """
         Initializes class, loads all required datasets from disk
         """
-        basedir = os.path.join(os.path.dirname(__file__), "datasets")
+
+        super(HeuristicBasedParser, self).__init__()
+
+        datasets_dir = os.path.join(self.basedir, "datasets")
         self.names_set = self.load_dicts(
-            include=[os.path.join(basedir, "fuge_name_dataset.txt"),
-                     os.path.join(basedir, "extra_names.txt")],
-            exclude=[os.path.join(basedir, "names_junk.txt")]
+            include=[os.path.join(datasets_dir, "fuge_name_dataset.txt"),
+                     os.path.join(datasets_dir, "extra_names.txt")],
+            exclude=[os.path.join(datasets_dir, "names_junk.txt")]
         )
 
         self.countries_set = self.load_dicts(
-            include=[os.path.join(basedir, "countries.txt")],
+            include=[os.path.join(datasets_dir, "countries.txt")],
             exclude=[]
         )
-
-        super(HeuristicBasedParser, self).__init__()
 
     def load_dicts(self, include, exclude):
         """

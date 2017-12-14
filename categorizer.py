@@ -4,6 +4,7 @@ only those that has information on beneficiary ownership
 """
 
 import logging
+import os.path
 
 logger = logging.getLogger("categorizer")
 
@@ -18,7 +19,9 @@ class HasBeneficiaryOwnershipRecord(object):
         Initializes HasBeneficiaryOwnershipRecord class,
         reads/posprocesses the list of markers from text file
         """
-        with open("datasets/beneficiary_ownership_markers.txt") as fp:
+
+        basedir = os.path.dirname(__file__)
+        with open(os.path.join(basedir, "datasets/beneficiary_ownership_markers.txt")) as fp:
             self.markers = set(map(str.strip, fp))
 
     def classify(self, tokenized_record):

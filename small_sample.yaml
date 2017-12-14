@@ -1,0 +1,23 @@
+pipeline:
+    reader:
+        - reader.EDRReader
+        - file_path: "test_data/15.1-EX_XML_EDR_UO.xml"
+    preprocessor:
+        - preprocessor.PreProcessor
+        - tokenizer: "!tokenize_uk.tokenize_words"
+    beneficiary_categorizer:
+        - categorizer.HasBeneficiaryOwnershipRecord
+    parser:
+        - record_parser.EnsembleBasedParser
+        -
+            voters:
+                -
+                    - "!record_parser.HeuristicBasedParser"
+                -
+                    - "!record_parser.MITIEBasedParser"
+                    - model: expirements/edr_ner_model_combined_embeddings_3class_syntetic.dat
+            cutoff: 1
+            merge_overlapping: True
+
+output_csv: test_data/output_simple.csv
+export_only_beneficial_owners: False
