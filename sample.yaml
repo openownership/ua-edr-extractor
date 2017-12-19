@@ -28,6 +28,7 @@ pipeline:
             cutoff: 2
             merge_overlapping: True
 
-output_csv: test_data/output_cutoff2_merged.csv
+output_file: test_data/output_cutoff2_merged.csv
+output_format: csv
 # limit: 100000
 export_only_beneficial_owners: False

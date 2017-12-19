@@ -61,6 +61,7 @@ pipeline:
             cutoff: 2
             merge_overlapping: True
 
-output_csv: test_data/output_everything2_merged_filtered_and_stripped_everything_and_everything_at_all.csv
+output_file: test_data/output_everything2_merged_filtered_and_stripped_everything_and_everything_at_all.csv
+output_format: csv
 # limit: 100000
 export_only_beneficial_owners: True

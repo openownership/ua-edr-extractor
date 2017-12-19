@@ -19,5 +19,6 @@ pipeline:
             cutoff: 1
             merge_overlapping: True
 
-output_csv: test_data/output_simple.csv
+output_file: test_data/output_simple.csv
+output_format: csv
 export_only_beneficial_owners: True

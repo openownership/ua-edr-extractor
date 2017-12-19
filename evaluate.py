@@ -148,8 +148,13 @@ if __name__ == '__main__':
         help='The source data in XML format - takes precedence over the file path set in the profile'
     )
     parser.add_argument(
-        "--output_csv",
-        help='The path for the CSV output file - takes precedence over the file path set in the profile'
+        "--output_file",
+        help='The path for the CSV/JSON output file - takes precedence over the file path set in the profile'
+    )
+    parser.add_argument(
+        "--output_format",
+        choices=["csv", "jsonl"],
+        help='Type of file export'
     )
     parser.add_argument(
         "--show_stats",
@@ -187,7 +192,8 @@ if __name__ == '__main__':
                     reader_file_path_entry["file_path"] = args.source_xml
 
             pipeline = Pipeline(profile["pipeline"])
-            output_csv = args.output_csv or profile["output_csv"]
+            output_file = args.output_file or profile["output_file"]
+            output_format = args.output_format or profile["output_format"]
             limit = args.limit or profile.get("limit")
             export_only_bo = bool(profile.get("export_only_beneficial_owners"))
 
@@ -199,7 +205,7 @@ if __name__ == '__main__':
             counts = defaultdict(int)
             keys = set()
 
-            with open(output_csv, "w") as f_out:
+            with open(output_file, "w") as f_out:
                 w = None
                 for res in pipeline.pump_it():
                     result += 1
@@ -207,18 +213,22 @@ if __name__ == '__main__':
                     if res["Is beneficial owner"]:
                         bo_result += 1
 
-                    # There are still a bug when exporting to CSV with export_only_bo=False
-                    if not export_only_bo:
-                        if w is None:
-                            w = csv.DictWriter(f_out, fieldnames=sorted(res.keys()), dialect="excel")
-                            w.writeheader()
+                    if output_format == "csv":
+                        # There are still a bug when exporting to CSV with export_only_bo=False
+                        if not export_only_bo:
+                            if w is None:
+                                w = csv.DictWriter(f_out, fieldnames=sorted(res.keys()), dialect="excel")
+                                w.writeheader()
 
-                        w.writerow(res)
-                    elif res["Is beneficial owner"]:
-                        if w is None:
-                            w = csv.DictWriter(f_out, fieldnames=sorted(res.keys()), dialect="excel")
-                            w.writeheader()
-                        w.writerow(res)
+                            w.writerow(res)
+                        elif res["Is beneficial owner"]:
+                            if w is None:
+                                w = csv.DictWriter(f_out, fieldnames=sorted(res.keys()), dialect="excel")
+                                w.writeheader()
+                            w.writerow(res)
+                    else:
+                        if not export_only_bo or res["Is beneficial owner"]:
+                            f_out.write(json.dumps(res, sort_keys=True, ensure_ascii=False) + "\n")
 
                     for k in res:
                         if k.startswith("total_"):
