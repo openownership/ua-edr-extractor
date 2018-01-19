@@ -9,8 +9,9 @@ import argparse
 import logging
 import csv
 from collections import defaultdict
-
 from werkzeug.utils import import_string
+
+from translitua import translit
 
 logger = logging.getLogger("evaluate")
 
@@ -85,18 +86,28 @@ class Pipeline(object):
 
         base_rec = {
             "Company name": company["name"],
+            "Company name EN": translit(company["name"]),
+            "Company short name": company["short_name"],
+            "Company short name EN": translit(company["short_name"]),
             "Company number": company["edrpou"],
             "Company address": company["location"],
             "Company head": company["head"],
+            "Company head EN": translit(company["head"]),
             "Company profile": company["company_profile"],
             "Company status": company["status"],
-            "Is beneficial owner": False
+            "Is beneficial owner": False,
+            "BO is absent": False,
+            "Has reference": False,
+            "Was dereferenced": False,
         }
 
         founders = self.preprocessor.process_founders(company)
 
         if not founders:
             yield base_rec
+
+        had_references = False
+        true_founders = []
 
         for founder in founders:
             rec = base_rec.copy()
@@ -106,13 +117,41 @@ class Pipeline(object):
             if self.beneficiary_categorizer.classify(founder):
                 rec["Is beneficial owner"] = True
                 owner = self.parser.parse_founders_record(founder, include_stats=True)
+                owner["Name EN"] = list(map(translit, owner["Name"]))
+
+                owner["BO is absent"] = self.beneficiary_categorizer.is_absent(founder)
+
+                if not owner["Name"] and not owner["BO is absent"]:
+                    if self.beneficiary_categorizer.is_reference(founder):
+                        owner["Has reference"] = True
+                        had_references = True
+
                 rec.update(owner)
+
+                yield rec
+            else:
+                true_founders.append(founder)
+
+        # Second pass: checking if there was BO records that references to founders
+        # so we parse founders records too:
+        for founder in true_founders:
+            rec = base_rec.copy()
+
+            rec["Raw founder record"] = founder
+
+            if had_references:
+                rec["Is beneficial owner"] = True
+                owner = self.parser.parse_founders_record(founder, include_stats=True)
+                owner["Name EN"] = list(map(translit, owner["Name"]))
+
+                owner["Was dereferenced"] = True
+                rec.update(owner)
+
+            yield rec
 
             # That should be enabled once we'll decide to also parse founders
             # owner = self.parser.parse_founders_record(founder, include_stats=True)
             # rec.update(owner)
-
-            yield rec
 
     def pump_it(self):
         """
