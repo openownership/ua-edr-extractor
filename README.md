@@ -1,6 +1,6 @@
 # edr_extractor
 
-Whole idea of that project is to parse pulically available XML feed of ukrainian
+Whole idea of that project is to parse publically available XML feed of ukrainian
 registry of companies and extract the information about beneficiary ownership into
 machine readable format (JSONL by default).
 
