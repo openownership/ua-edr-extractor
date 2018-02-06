@@ -101,7 +101,7 @@ ENV/
 .mypy_cache/
 
 
-expirements/
+models/
 test_data/
 .DS_Store
 
