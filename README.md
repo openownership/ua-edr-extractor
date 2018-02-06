@@ -1,6 +1,6 @@
 # edr_extractor
 
-Whole idea of that project is to parse pulically available XML feed of ukrainian
+Whole idea of that project is to parse publically available XML feed of ukrainian
 registry of companies and extract the information about beneficiary ownership into
 machine readable format (JSONL by default).
 
@@ -47,3 +47,11 @@ To run it you need:
 * Huge CSV file will fall out
 
 Also, I encourage you to read doccomments, code is very thoroughly documented.
+
+## Running the full extraction
+
+After following the instructions above, and copying all the ML models (currently stored in Google Drive) into `models/`, run:
+
+```shell
+python evaluate.py full_sample.yaml --source_xml <path_to_source_xml_file> --output_file <path_to_output_the_results> --output_format jsonl --show_stats
+```
