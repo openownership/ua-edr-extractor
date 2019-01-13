@@ -37,7 +37,7 @@ And here is the pipeline:
 
 
 To run it you need:
-* Publically available export of ukrainian registry of companies (can be obtained from here http://data.gov.ua/passport/73cfe78e-89ef-4f06-b3ab-eb5f16aea237). You'll need only one of 3-4 files from the archive, `*uo*.xml`
+* Publically available export of ukrainian registry of companies (can be obtained from here https://data.gov.ua/dataset/1c7f3815-3259-45e0-bdf1-64dca07ddc10). You'll need only one of 3-4 files from the archive, `*uo*.xml`
 * Clone this repo
 * Python3.4+
 * Install all requirements using pip: `pip -r requirements.txt`
