@@ -1,7 +1,0 @@
-nltk==3.2.4
-tokenize-uk==0.2.0
-git+https://github.com/mit-nlp/MITIE.git#egg=MITIE
-PyYAML==3.12
-werkzeug
-PTable
-translitua==1.2.4

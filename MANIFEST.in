@@ -1,0 +1,1 @@
+include ua_edr_extractor/datasets/*.txt
