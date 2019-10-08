@@ -10,9 +10,9 @@ setup(
     license='MIT',
     packages=['ua_edr_extractor'],
     install_requires=[
-        'nltk==3.2.4',
+        'nltk==3.4.5',
         'tokenize-uk==0.2.0',
-        'PyYAML==3.12',
+        'PyYAML==4.2b1',
         'werkzeug',
         'PTable',
         'translitua==1.2.4',
