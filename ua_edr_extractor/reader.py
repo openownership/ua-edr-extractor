@@ -46,7 +46,8 @@ class EDRReader(object):
                 'BOSS': 'head',
                 'KVED': 'company_profile',
                 'STAN': 'status',
-                'FOUNDERS': 'founders'
+                'FOUNDERS': 'founders',
+                'FOUNDING_DOCUMENT_NUM': 'founding_document_num'
             }
 
             for i, chunk in enumerate(re.finditer('<RECORD>.*?</RECORD>', fp.read())):
