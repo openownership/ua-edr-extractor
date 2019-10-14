@@ -40,9 +40,10 @@ To run it you need:
 * Publically available export of ukrainian registry of companies (can be obtained from here https://data.gov.ua/dataset/1c7f3815-3259-45e0-bdf1-64dca07ddc10). You'll need only one of 3-4 files from the archive, `*uo*.xml`
 * Clone this repo
 * Python3.4+
-* Install all requirements using pip: `pip -r requirements.txt`
+* A python virtualenv (optional but recommended) `python3 -m venv venv`
+* Install all requirements using pip: `source venv/bin/activate && pip install .`
 * MITIE models for ML part of the pipeline, which I'm not publishing here, because this margin is too narrow to contain it.
-* Make changes to sample.yaml script and then run it like this: `python evaluate.py sample.yaml --show_stats`
+* Make changes to sample.yaml script and then run it like this: `ua-edr-extractor sample.yaml --show_stats`
 * And wait
 * Huge CSV file will fall out
 
@@ -53,5 +54,5 @@ Also, I encourage you to read doccomments, code is very thoroughly documented.
 After following the instructions above, and copying all the ML models (currently stored in Google Drive) into `models/`, run:
 
 ```shell
-python evaluate.py full_sample.yaml --source_xml <path_to_source_xml_file> --output_file <path_to_output_the_results> --output_format jsonl --show_stats
+ua-edr-extractor full_sample.yaml --source_xml <path_to_source_xml_file> --output_file <path_to_output_the_results> --output_format jsonl --show_stats
 ```
