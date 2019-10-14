@@ -1,34 +1,34 @@
 pipeline:
     reader:
-        - reader.EDRReader
-        - file_path: "test_data/15.1-EX_XML_EDR_UO.xml"
+        - ua_edr_extractor.reader.EDRReader
+        - file_path: "path-to-downloaded-data/15.1-EX_XML_EDR_UO.xml"
     preprocessor:
-        - preprocessor.PreProcessor
+        - ua_edr_extractor.preprocessor.PreProcessor
         - tokenizer: "!tokenize_uk.tokenize_words"
     beneficiary_categorizer:
-        - categorizer.HasBeneficiaryOwnershipRecord
+        - ua_edr_extractor.categorizer.HasBeneficiaryOwnershipRecord
     parser:
-        - record_parser.EnsembleBasedParser
+        - ua_edr_extractor.record_parser.EnsembleBasedParser
         -
             voters:
                 -
-                    - "!record_parser.HeuristicBasedParser"
+                    - "!ua_edr_extractor.record_parser.HeuristicBasedParser"
                 -
-                    - "!record_parser.MITIEBasedParser"
-                    - model: expirements/edr_ner_model_combined_embeddings_name_class_syntetic.dat
+                    - "!ua_edr_extractor.record_parser.MITIEBasedParser"
+                    - model: models/edr_ner_model_combined_embeddings_name_class_syntetic.dat
                 -
-                    - "!record_parser.MITIEBasedParser"
-                    - model: expirements/edr_ner_model_combined_embeddings_name_class_full.dat
+                    - "!ua_edr_extractor.record_parser.MITIEBasedParser"
+                    - model: models/edr_ner_model_combined_embeddings_name_class_full.dat
                 -
-                    - "!record_parser.MITIEBasedParser"
-                    - model: expirements/edr_ner_model_combined_embeddings_3class_all_data.dat
+                    - "!ua_edr_extractor.record_parser.MITIEBasedParser"
+                    - model: models/edr_ner_model_combined_embeddings_3class_all_data.dat
                 -
-                    - "!record_parser.MITIEBasedParser"
-                    - model: expirements/edr_ner_model_combined_embeddings_3class_syntetic.dat
+                    - "!ua_edr_extractor.record_parser.MITIEBasedParser"
+                    - model: models/edr_ner_model_combined_embeddings_3class_syntetic.dat
             cutoff: 2
             merge_overlapping: True
 
-output_file: test_data/output_cutoff2_merged.csv
+output_file: output.csv
 output_format: csv
 # limit: 100000
-export_only_beneficial_owners: False
+export_only_beneficial_owners: True
