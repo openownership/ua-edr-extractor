@@ -101,8 +101,8 @@ ENV/
 .mypy_cache/
 
 
-models/
-test_data/
+ua_edr_extractor/models/
+ua_edr_extractor/test_data/
 .DS_Store
 
 src

@@ -176,7 +176,7 @@ class Pipeline(object):
                 yield res
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -307,3 +307,6 @@ if __name__ == '__main__':
         except KeyError as e:
             logger.error("Cannot parse profile file: %s" % e)
             exit(1)
+
+if __name__ == '__main__':
+    main()
