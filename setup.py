@@ -12,7 +12,7 @@ setup(
     install_requires=[
         'nltk==3.4.5',
         'tokenize-uk==0.2.0',
-        'PyYAML==4.2b1',
+        'PyYAML==5.4',
         'werkzeug',
         'PTable',
         'translitua==1.2.4',
