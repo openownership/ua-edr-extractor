@@ -59,11 +59,11 @@ class EDRReader(object):
                     logger.error('Cannot parse record #{}, {}'.format(i, chunk))
                     continue
 
-                for el in etree.getchildren():
+                for el in list(etree):
                     if el.tag == 'EDRPOU' and el.text and el.text.lstrip('0'):
                         company[mapping[el.tag]] = str(int(el.text)).rjust(8, "0")
                     elif el.tag == 'FOUNDERS':
-                        for founder in el.getchildren():
+                        for founder in list(el):
                             founders_list.append(founder.text)
                     else:
                         company[mapping[el.tag]] = el.text
